@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  firebase-emulator:
+    image: mtlynch/firestore-emulator-docker:latest
+    environment:
+      - FIRESTORE_PROJECT_ID=nutrap-dev
+    ports:
+      - "8080:8080" # Firestore
+    volumes:
+      - ./firebase_data:/opt/workspace

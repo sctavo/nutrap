@@ -1,0 +1,20 @@
+# Dependencias
+node_modules/
+.pnp
+.pnp.js
+
+# Expo y React Native
+.expo/
+dist/
+npm-debug.*
+*.jsc
+*.jsbundle
+
+# Entorno y Docker
+.env
+.env.local
+firebase_data/
+
+# SO
+.DS_Store
+Thumbs.db
