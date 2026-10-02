@@ -4,7 +4,7 @@ import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { styles } from './src/constants/theme';
 import type { Screen, ProScreen } from './src/types';
 import { Welcome, Dashboard, Scanner, Calendar, Profile, Settings, ProDashboard, Users, Plans, Reports } from './src/screens';
-
+///prueba uno
 export default function App() { 
   const {width} = useWindowDimensions(); 
   const [screen, setScreen] = useState<Screen>(width >= 900 ? 'pro-dashboard' : 'welcome'); 
