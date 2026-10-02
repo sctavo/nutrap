@@ -7,3 +7,5 @@ docker-compose up -d
 
 # 3. Iniciar el servidor de desarrollo de React Native
 npm start
+
+oa
