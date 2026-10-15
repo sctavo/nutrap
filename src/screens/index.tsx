@@ -4,13 +4,87 @@ import { View, Text, ScrollView, Switch, TextInput, Pressable } from 'react-nati
 import { C, styles } from '../constants/theme';
 import type { Screen, ProScreen } from '../types';
 import { Title, Card, Button, Brand, Ring, Macro, Setting, Stat, Field, MobileHeader, MobileNav } from '../components';
+import { FoodRepository } from '../services/foodRepository';
+import { Alimento } from '../types/food';
 
 const meals = [['DESAYUNO','650 kcal','Avena con proteína...'], /* ... resto de tus meals ... */] as const;
 const proNav: [ProScreen,string][] = [['pro-dashboard','PANEL PRINCIPAL'],['users','USUARIOS'],['plans','PLANES'],['reports','REPORTES']];
 
 export function Welcome({go}:{go:(s:Screen)=>void}) { return <View style={styles.welcome}><View style={styles.welcomeGlow}/><Brand/><Text style={styles.welcomeTitle}>TU NUTRICIÓN,{`\n`}EN MOVIMIENTO.</Text><Text style={styles.lead}>Seguimiento de macros, escáner de alimentos y hábitos que se sostienen.</Text><Button label="COMENZAR" onPress={()=>go('dashboard')}/><Pressable onPress={()=>go('pro-dashboard')}><Text style={styles.proLink}>ACCESO PROFESIONAL</Text></Pressable></View>; }
 export function Dashboard({go,consumed}:{go:(s:Screen)=>void;consumed:number}) { return <><MobileHeader onProfile={()=>go('profile')} onSettings={()=>go('settings')}/><ScrollView contentContainerStyle={styles.mobileContent}><Text style={styles.eyebrow}>HOY</Text><Title dark>BUEN DÍA, CARLOS</Title><View style={styles.rings}><Ring value={consumed} label="kcal"/><Ring value={2200-consumed} label="RESTANTES"/></View><Title>MACROS</Title><Macro label="PROTEÍNA" now="120" goal="160g" percent={75}/><Macro label="CARBS" now="200" goal="250g" percent={80}/><Macro label="FATS" now="45" goal="65g" percent={69}/><Card><Text style={styles.cardLabel}>PRÓXIMA COMIDA</Text><Text style={styles.cardTitle}>ALMUERZO · 950 KCAL</Text><Text style={styles.body}>Pechuga de pollo, arroz integral, brócoli y aceite de oliva.</Text></Card></ScrollView><MobileNav screen="dashboard" setScreen={go}/></>; }
-export function Scanner({go,onScan}:{go:(s:Screen)=>void;onScan:()=>void}) { const [manual,setManual]=useState(''); return <><MobileHeader onProfile={()=>go('profile')} onSettings={()=>go('settings')}/><ScrollView contentContainerStyle={styles.mobileContent}><Title dark>SCANNER</Title><Card style={styles.viewfinder}><Text style={styles.viewfinderText}>POSITION BARCODE{`\n`}IN FRAME</Text><View style={styles.target}/></Card><Text style={styles.cardLabel}>INGRESO MANUAL</Text><TextInput value={manual} onChangeText={setManual} placeholder="Nombre del alimento" placeholderTextColor={C.dim} style={styles.input}/><Button label="AGREGAR ALIMENTO" onPress={()=>{setManual('');onScan();go('dashboard')}}/><Title>RECENT SCANS</Title><Card><Text style={styles.cardTitle}>PANCITO DE MOLDE</Text><Text style={styles.body}>30G SCOOP · 120 KCAL</Text></Card></ScrollView><MobileNav screen="scanner" setScreen={go}/></>; }
+
+export function Scanner({go, onScan}:{go:(s:Screen)=>void; onScan:(kcal: number)=>void}) { 
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [lastScanned, setLastScanned] = useState<Alimento | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSearch = async () => {
+    if (!barcodeInput.trim()) return;
+    setLoading(true);
+    setErrorMsg('');
+
+    const alimento = await FoodRepository.getByBarcode(barcodeInput);
+
+    if (alimento) {
+      setLastScanned(alimento);
+      onScan(alimento.calorias); // Suma las calorías reales
+      setBarcodeInput('');
+    } else {
+      setErrorMsg('Producto no encontrado. Intenta ingreso manual.');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <>
+      <MobileHeader onProfile={()=>go('profile')} onSettings={()=>go('settings')}/>
+      <ScrollView contentContainerStyle={styles.mobileContent}>
+        <Title dark>SCANNER DE ALIMENTOS</Title>
+        
+        <Card style={styles.viewfinder}>
+          <Text style={styles.viewfinderText}>
+            INGRESA CÓDIGO DE BARRAS (EAN / UPC)
+          </Text>
+          <View style={styles.target}/>
+        </Card>
+
+        <Text style={styles.cardLabel}>CÓDIGO DE BARRAS O NOMBRE</Text>
+        <TextInput 
+          value={barcodeInput} 
+          onChangeText={setBarcodeInput} 
+          placeholder="Ej: 7801610001053 o 5449000000996" 
+          placeholderTextColor={C.dim} 
+          keyboardType="numeric"
+          style={styles.input}
+        />
+        
+        <Button 
+          label={loading ? "CONSULTANDO API..." : "BUSCAR ALIMENTO (API)"} 
+          onPress={handleSearch}
+        />
+
+        {errorMsg !== '' && (
+          <Text style={{color: C.red, fontWeight: '700', fontSize: 13}}>{errorMsg}</Text>
+        )}
+
+        <Title>ÚLTIMO PRODUCTO REGISTRADO</Title>
+        <Card>
+          <Text style={styles.cardTitle}>
+            {lastScanned ? lastScanned.nombre : 'PANCITO DE MOLDE (DEMO)'}
+          </Text>
+          <Text style={styles.body}>
+            {lastScanned 
+              ? `${lastScanned.calorias} KCAL | P: ${lastScanned.proteina}g | C: ${lastScanned.carbohidratos}g | G: ${lastScanned.grasas}g (Vía ${lastScanned.fuente})`
+              : '30G SCOOP · 120 KCAL'}
+          </Text>
+        </Card>
+      </ScrollView>
+      <MobileNav screen="scanner" setScreen={go}/>
+    </>
+  ); 
+}
+
 export function Calendar({go}:{go:(s:Screen)=>void}) { return <><MobileHeader onProfile={()=>go('profile')} onSettings={()=>go('settings')}/><ScrollView contentContainerStyle={styles.mobileContent}><Title dark>CALENDARIO</Title><View style={styles.week}>{['LUN 13','MAR 14','MIÉ 15','JUE 16','VIE 17','SÁB 18','DOM 19'].map((d,i)=><View key={d} style={[styles.day,i===2&&styles.dayActive]}><Text style={styles.dayText}>{d}</Text></View>)}</View><Title>CONSUMO DIARIO</Title><Card><Text style={styles.cardLabel}>ÚLTIMOS 7 DÍAS · META: 2200 KCAL</Text><View style={styles.chart}>{[70,88,75,92,80,60,85].map((h,i)=><View key={i} style={[styles.chartBar,{height:h}]} />)}</View></Card><Title>RESUMEN MENSUAL</Title><View style={styles.statGrid}><Stat label="PROMEDIO DIARIO" value="1,950 kcal"/><Stat label="DÍAS EN META" value="18/30"/><Stat label="MEJOR RACHA" value="7 días"/></View></ScrollView><MobileNav screen="calendar" setScreen={go}/></>; }
 export function Profile({go}:{go:(s:Screen)=>void}) { return <><MobileHeader onProfile={()=>go('profile')} onSettings={()=>go('settings')}/><ScrollView contentContainerStyle={styles.mobileContent}><Card style={{alignItems:'center'}}><View style={[styles.avatar,styles.avatarLarge]}><Text style={styles.avatarText}>CM</Text></View><Title dark>CARLOS MÉNDEZ</Title><Text style={styles.body}>carlos@email.com</Text></Card><Title>MI META DIARIA</Title><Card><Text style={styles.bigNumber}>84% COMPLETADO</Text><Text style={styles.body}>2200 / 2200 KCAL</Text></Card><Title>ESTADÍSTICAS CLAVE</Title><View style={styles.statGrid}><Stat label="PESO ACTUAL" value="78 KG"/><Stat label="PESO META" value="72 KG"/><Stat label="ACTIVIDAD" value="MODERADO"/></View><Button label="EDITAR PERFIL" onPress={()=>go('settings')} ghost/></ScrollView><MobileNav screen="profile" setScreen={go}/></>; }
 export function Settings({go}:{go:(s:Screen)=>void}) { const [dark,setDark]=useState(true),[push,setPush]=useState(true); return <><MobileHeader onProfile={()=>go('profile')} onSettings={()=>go('settings')}/><ScrollView contentContainerStyle={styles.mobileContent}><Title dark>CONFIGURACIÓN</Title><Text style={styles.cardLabel}>APARIENCIA</Text><Setting label="MODO OSCURO / CLARO" right={<Switch value={dark} onValueChange={setDark} trackColor={{true:C.lime}}/>}/><Text style={styles.cardLabel}>PREFERENCIAS</Text><Setting label="NOTIFICACIONES PUSH" right={<Switch value={push} onValueChange={setPush} trackColor={{true:C.lime}}/>}/><Setting label="UNIDADES DE MEDIDA" value="MÉTRICO (KG)"/><Setting label="IDIOMA" value="Español"/><Card><Text style={styles.cardTitle}>NUTRITRACK PRO</Text><Text style={styles.body}>v2.4.1{`\n\n`}Desarrollado bajo estándares urbanos industriales de alto rendimiento.</Text></Card></ScrollView><MobileNav screen="settings" setScreen={go}/></>; }

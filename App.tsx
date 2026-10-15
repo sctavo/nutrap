@@ -22,7 +22,7 @@ export default function App() {
     } 
     switch(screen){
       case 'dashboard': return <Dashboard go={go} consumed={consumed}/>;
-      case 'scanner': return <Scanner go={go} onScan={() => setConsumed(v => Math.min(2200, v + 120))}/>;
+      case 'scanner': return <Scanner go={go} onScan={(kcal) => setConsumed(v => Math.min(2200, v + (kcal || 120)))}/>;
       case 'calendar': return <Calendar go={go}/>;
       case 'settings': return <Settings go={go}/>;
       case 'profile': return <Profile go={go}/>;
