@@ -1,6 +1,7 @@
 //logica de las vistas
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Switch, TextInput, Pressable } from 'react-native';
+import { View, Text, ScrollView, Switch, TextInput, Pressable, StyleSheet, Platform } from 'react-native';
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { C, styles } from '../constants/theme';
 import type { Screen, ProScreen } from '../types';
 import { Title, Card, Button, Brand, Ring, Macro, Setting, Stat, Field, MobileHeader, MobileNav } from '../components';
@@ -14,12 +15,36 @@ export function Welcome({go}:{go:(s:Screen)=>void}) { return <View style={styles
 export function Dashboard({go,consumed}:{go:(s:Screen)=>void;consumed:number}) { return <><MobileHeader onProfile={()=>go('profile')} onSettings={()=>go('settings')}/><ScrollView contentContainerStyle={styles.mobileContent}><Text style={styles.eyebrow}>HOY</Text><Title dark>BUEN DÍA, CARLOS</Title><View style={styles.rings}><Ring value={consumed} label="kcal"/><Ring value={2200-consumed} label="RESTANTES"/></View><Title>MACROS</Title><Macro label="PROTEÍNA" now="120" goal="160g" percent={75}/><Macro label="CARBS" now="200" goal="250g" percent={80}/><Macro label="FATS" now="45" goal="65g" percent={69}/><Card><Text style={styles.cardLabel}>PRÓXIMA COMIDA</Text><Text style={styles.cardTitle}>ALMUERZO · 950 KCAL</Text><Text style={styles.body}>Pechuga de pollo, arroz integral, brócoli y aceite de oliva.</Text></Card></ScrollView><MobileNav screen="dashboard" setScreen={go}/></>; }
 
 export function Scanner({go, onScan}:{go:(s:Screen)=>void; onScan:(kcal: number)=>void}) { 
+  const [permission, requestPermission] = useCameraPermissions();
+  const [torch, setTorch] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [scanMode, setScanMode] = useState<'camera' | 'manual'>(Platform.OS === 'web' ? 'manual' : 'camera');
   const [barcodeInput, setBarcodeInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastScanned, setLastScanned] = useState<Alimento | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSearch = async () => {
+  const handleBarcodeScanned = async (result: BarcodeScanningResult) => {
+    const code = result.data?.trim();
+    if (!code || scanned || loading) return;
+
+    setScanned(true);
+    setLoading(true);
+    setErrorMsg('');
+    setBarcodeInput(code);
+
+    const alimento = await FoodRepository.getByBarcode(code);
+
+    if (alimento) {
+      setLastScanned(alimento);
+      onScan(alimento.calorias);
+    } else {
+      setErrorMsg(`Producto no encontrado en Open Food Facts (código: ${code}).`);
+    }
+    setLoading(false);
+  };
+
+  const handleManualSearch = async () => {
     if (!barcodeInput.trim()) return;
     setLoading(true);
     setErrorMsg('');
@@ -28,12 +53,19 @@ export function Scanner({go, onScan}:{go:(s:Screen)=>void; onScan:(kcal: number)
 
     if (alimento) {
       setLastScanned(alimento);
-      onScan(alimento.calorias); // Suma las calorías reales
+      onScan(alimento.calorias);
       setBarcodeInput('');
+      setScanned(true);
     } else {
-      setErrorMsg('Producto no encontrado. Intenta ingreso manual.');
+      setErrorMsg('Producto no encontrado. Revisa el código o intenta nuevamente.');
     }
     setLoading(false);
+  };
+
+  const resetScan = () => {
+    setScanned(false);
+    setErrorMsg('');
+    setBarcodeInput('');
   };
 
   return (
@@ -41,42 +73,125 @@ export function Scanner({go, onScan}:{go:(s:Screen)=>void; onScan:(kcal: number)
       <MobileHeader onProfile={()=>go('profile')} onSettings={()=>go('settings')}/>
       <ScrollView contentContainerStyle={styles.mobileContent}>
         <Title dark>SCANNER DE ALIMENTOS</Title>
-        
-        <Card style={styles.viewfinder}>
-          <Text style={styles.viewfinderText}>
-            INGRESA CÓDIGO DE BARRAS (EAN / UPC)
-          </Text>
-          <View style={styles.target}/>
-        </Card>
 
-        <Text style={styles.cardLabel}>CÓDIGO DE BARRAS O NOMBRE</Text>
-        <TextInput 
-          value={barcodeInput} 
-          onChangeText={setBarcodeInput} 
-          placeholder="Ej: 7801610001053 o 5449000000996" 
-          placeholderTextColor={C.dim} 
-          keyboardType="numeric"
-          style={styles.input}
-        />
-        
-        <Button 
-          label={loading ? "CONSULTANDO API..." : "BUSCAR ALIMENTO (API)"} 
-          onPress={handleSearch}
-        />
+        {/* Selector de Modo: Cámara vs Manual */}
+        <View style={{flexDirection:'row', gap:10}}>
+          <Pressable 
+            onPress={()=>{ setScanMode('camera'); resetScan(); }} 
+            style={[styles.button, {flex:1}, scanMode !== 'camera' && styles.buttonGhost]}
+          >
+            <Text style={[styles.buttonText, scanMode !== 'camera' && {color:C.white}]}>📷 CÁMARA</Text>
+          </Pressable>
+          <Pressable 
+            onPress={()=>setScanMode('manual')} 
+            style={[styles.button, {flex:1}, scanMode !== 'manual' && styles.buttonGhost]}
+          >
+            <Text style={[styles.buttonText, scanMode !== 'manual' && {color:C.white}]}>⌨️ MANUAL</Text>
+          </Pressable>
+        </View>
+
+        {scanMode === 'camera' ? (
+          !permission ? (
+            <Card style={[styles.viewfinder, {justifyContent:'center', alignItems:'center'}]}>
+              <Text style={styles.viewfinderText}>CARGANDO CÁMARA...</Text>
+            </Card>
+          ) : !permission.granted ? (
+            <Card style={[styles.viewfinder, {padding:24, justifyContent:'center', alignItems:'center', gap:14}]}>
+              <Text style={[styles.cardTitle, {textAlign:'center'}]}>PERMISO DE CÁMARA REQUERIDO</Text>
+              <Text style={[styles.body, {textAlign:'center'}]}>
+                Para escanear códigos de barras de alimentos directamente, autoriza el uso de la cámara.
+              </Text>
+              <Button label="CONCEDER PERMISO" onPress={requestPermission}/>
+            </Card>
+          ) : (
+            <Card style={[styles.viewfinder, {padding:0, overflow:'hidden', position:'relative'}]}>
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                enableTorch={torch}
+                barcodeScannerSettings={{
+                  barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'],
+                }}
+                onBarcodeScanned={scanned || loading ? undefined : handleBarcodeScanned}
+              />
+              
+              {/* Cuadro objetivo */}
+              <View style={styles.target} pointerEvents="none"/>
+
+              {/* Botón linterna */}
+              <Pressable
+                onPress={()=>setTorch(t => !t)}
+                style={{
+                  position:'absolute',
+                  top:12,
+                  right:12,
+                  backgroundColor: torch ? C.lime : 'rgba(0,0,0,0.65)',
+                  paddingHorizontal:12,
+                  paddingVertical:6,
+                  borderRadius:20,
+                }}
+              >
+                <Text style={{color: torch ? '#000' : C.white, fontSize:10, fontWeight:'900', letterSpacing:1}}>
+                  {torch ? '🔦 LUZ ON' : '💡 LUZ OFF'}
+                </Text>
+              </Pressable>
+
+              {/* Overlay de carga */}
+              {loading && (
+                <View style={[StyleSheet.absoluteFill, {backgroundColor:'rgba(0,0,0,0.75)', justifyContent:'center', alignItems:'center', padding:20}]}>
+                  <Text style={{color:C.lime, fontWeight:'900', fontSize:13, letterSpacing:1}}>
+                    CONSULTANDO API...
+                  </Text>
+                </View>
+              )}
+
+              {/* Overlay al detectar código */}
+              {scanned && !loading && (
+                <View style={[StyleSheet.absoluteFill, {backgroundColor:'rgba(0,0,0,0.85)', justifyContent:'center', alignItems:'center', padding:20, gap:12}]}>
+                  <Text style={{color:C.lime, fontWeight:'900', fontSize:14, letterSpacing:1}}>
+                    ✓ CÓDIGO CAPTURADO
+                  </Text>
+                  <Text style={{color:C.white, fontSize:12, fontWeight:'700'}}>{barcodeInput}</Text>
+                  <Button label="ESCANEAR OTRO" onPress={resetScan}/>
+                </View>
+              )}
+            </Card>
+          )
+        ) : (
+          <Card>
+            <Text style={styles.cardLabel}>CÓDIGO DE BARRAS O NÚMERO (EAN / UPC)</Text>
+            <TextInput 
+              value={barcodeInput} 
+              onChangeText={setBarcodeInput} 
+              placeholder="Ej: 7801610001053 o 5449000000996" 
+              placeholderTextColor={C.dim} 
+              keyboardType="numeric"
+              style={styles.input}
+            />
+            <View style={{height:10}}/>
+            <Button 
+              label={loading ? "CONSULTANDO API..." : "BUSCAR ALIMENTO (API)"} 
+              onPress={handleManualSearch}
+            />
+          </Card>
+        )}
 
         {errorMsg !== '' && (
-          <Text style={{color: C.red, fontWeight: '700', fontSize: 13}}>{errorMsg}</Text>
+          <Card style={{borderColor:C.red, backgroundColor:'#2b1a1a', gap:8}}>
+            <Text style={{color:C.red, fontWeight:'800', fontSize:12}}>{errorMsg}</Text>
+            {scanned && <Button label="REINTENTAR ESCANEO" onPress={resetScan} ghost/>}
+          </Card>
         )}
 
         <Title>ÚLTIMO PRODUCTO REGISTRADO</Title>
         <Card>
           <Text style={styles.cardTitle}>
-            {lastScanned ? lastScanned.nombre : 'PANCITO DE MOLDE (DEMO)'}
+            {lastScanned ? lastScanned.nombre : 'NINGUNO TODAVÍA'}
           </Text>
           <Text style={styles.body}>
             {lastScanned 
               ? `${lastScanned.calorias} KCAL | P: ${lastScanned.proteina}g | C: ${lastScanned.carbohidratos}g | G: ${lastScanned.grasas}g (Vía ${lastScanned.fuente})`
-              : '30G SCOOP · 120 KCAL'}
+              : 'Apunta la cámara a un código de barras para registrar calorías y macros.'}
           </Text>
         </Card>
       </ScrollView>
