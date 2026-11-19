@@ -1,3 +1,4 @@
+export type AuthScreen = 'login' | 'register' | 'pending';
 export type MobileScreen = 'welcome' | 'dashboard' | 'scanner' | 'calendar' | 'settings' | 'profile';
 export type ProScreen = 'pro-dashboard' | 'users' | 'plans' | 'reports';
-export type Screen = MobileScreen | ProScreen;
+export type Screen = AuthScreen | MobileScreen | ProScreen;
