@@ -7,7 +7,7 @@ import type { UserProfile } from './src/types/models';
 import { AuthService } from './src/services/authService';
 import { PerfilService } from './src/services/firestoreService';
 import {
-  Login, Register, Pending,
+  Login, Register, Pending, PlataformaIncorrecta, ROL_DE_PLATAFORMA,
   Dashboard, Scanner, Calendar, Profile, Settings,
   ProDashboard, Users, Plans, Reports,
 } from './src/screens';
@@ -89,6 +89,11 @@ export default function App() {
       );
     }
 
+    /* ── Cuenta de otra plataforma: web = nutricionistas, móvil = pacientes ── */
+    if (user.rol !== ROL_DE_PLATAFORMA) {
+      return <PlataformaIncorrecta nombre={user.nombre} onLogout={logout} />;
+    }
+
     /* ── Paciente pendiente de asociación ── */
     if (user.rol === 'PACIENTE' && user.estado === 'pendiente') {
       return <Pending nombre={user.nombre} onLogout={logout} />;
@@ -107,11 +112,11 @@ export default function App() {
 
     /* ── App móvil del paciente ── */
     switch (screen) {
-      case 'scanner':  return <Scanner  go={go} uid={user.uid} />;
-      case 'calendar': return <Calendar go={go} />;
+      case 'scanner':  return <Scanner  go={go} user={user} />;
+      case 'calendar': return <Calendar go={go} user={user} />;
       case 'profile':  return <Profile  go={go} user={user} />;
-      case 'settings': return <Settings go={go} onLogout={logout} />;
-      default:         return <Dashboard go={go} uid={user.uid} nombre={user.nombre} meta={user.meta} />;
+      case 'settings': return <Settings go={go} user={user} onLogout={logout} />;
+      default:         return <Dashboard go={go} user={user} />;
     }
   };
 

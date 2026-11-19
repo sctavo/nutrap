@@ -27,6 +27,10 @@ export interface UserProfile {
   profesionalUid?: string;
   meta?:          MetaNutricional;
 
+  dieta?:         DietaSemanal; // copia de la dieta del plan activo (la app la escucha en vivo)
+  pesoActual?:    number;   // último peso registrado (kg)
+  pesoFecha?:     string;   // yyyy-MM-dd del último peso
+
   // Solo PROFESIONAL
   rut?:                  string;
   codigoIdentificador?:  string;
@@ -50,6 +54,8 @@ export interface ConsumoDiario {
   totalProteina:      number;
   totalCarbohidratos: number;
   totalGrasas:        number;
+  aguaMl?:            number;   // agua tomada ese día
+  pesoKg?:            number;   // peso registrado ese día (opcional)
 }
 
 export interface ExpedientePaciente {
@@ -64,6 +70,12 @@ export interface ExpedientePaciente {
   profesionalUid:  string;
   fechaIngreso:    string;
   planActivoId?:   string;
+
+  // Seguimiento — lo actualiza la app del paciente cada vez que registra un alimento
+  kcalHoy?:             number;   // total del día indicado en fechaUltimoRegistro
+  fechaUltimoRegistro?: string;   // yyyy-MM-dd
+  ultimoAlimento?:      string;
+  ultimoRegistroTs?:    number;   // Date.now()
 }
 
 /**
@@ -87,4 +99,22 @@ export interface PlanNutricional {
   grasasG:          number;
   activo:          boolean;
   creadoEn:        number;   // Date.now()
+  dieta?:          DietaSemanal;
 }
+
+// ─── Dieta (constructor del nutricionista) ────────────────────────────────────
+export type TipoComida = 'DESAYUNO' | 'COLACIÓN' | 'ALMUERZO' | 'ONCE' | 'CENA';
+
+export interface ComidaPlanificada {
+  id:          string;
+  tipo:        TipoComida;
+  hora?:       string;   // "08:30" (opcional)
+  descripcion: string;
+  kcal:        number;
+}
+
+/**
+ * Semana tipo: se repite todas las semanas.
+ * Claves '0'..'6' → 0 = lunes, 6 = domingo.
+ */
+export type DietaSemanal = Partial<Record<'0' | '1' | '2' | '3' | '4' | '5' | '6', ComidaPlanificada[]>>;
